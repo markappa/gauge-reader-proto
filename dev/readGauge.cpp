@@ -12,10 +12,11 @@ option to output calibratrion files:
 **/
 
 #include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <ctype.h>
+//#include <stdlib.h>
+//#include <unistd.h>
+//#include <ctype.h>
 #include <opencv2/opencv.hpp>
+#include <cxxopts.hpp>
 
 #undef DEBUG
 #undef CALIBRATE
@@ -33,14 +34,15 @@ bool dryRun = false;
 bool calibrate_step1 = false;
 bool calibrate_step2 = false;
 bool calibrate_step3 = false;
+bool canny = false;
 
 using namespace cv;
 int main(int argc, char** argv )
 {
-    int opt = 0;
-    char *fname = NULL;
-    int r;
-    Point2i c(0,0);
+    //char *fname = NULL;
+    std::string fname;
+    int r = 83;
+    Point2i c(410,240);
     int min_angle = 60;
     int max_angle = 320;
     int min_value = 0;
@@ -49,49 +51,61 @@ int main(int argc, char** argv )
     int maxValue = 255;
 
     // worked: -r 83 -x 410 -y 240
-    
-    while ((opt = getopt(argc, argv, "vi:r::x::y::d")) != -1) {
-        switch(opt) {
-            case 'v':
-                verbose = true;
-                break;
-            case 'd':
-                dryRun = true;
-                break;
-            case 'r':
-                r = atoi(optarg);
-                break;
-            case 'x':
-                c.x = atoi(optarg);
-                break;
-            case 'y':
-                c.y = atoi(optarg);
-                break;
-            case 'i':
-                fname = optarg;
-                if (verbose) printf("\nInput file: %s", in_fname);
-                break;
-            case '?':
-                /* Case when user enters the command as
-                * $ ./cmd_exe -i
-                */
-                if (optopt == 'i') {
-                    fprintf (stderr, "Option -%c requires an argument.\n", optopt);
-                    return ERROR;
-                } else if (isprint (optopt)) {
-                    fprintf (stderr, "Unknown option `-%c'.\n", optopt);
-                    return ERROR;
-                } else {
-                    fprintf (stderr, "Unknown option character `\\x%x'.\n", optopt);
-                }
-                break;
-            default:
-                abort();
-        }
+
+    cxxopts::Options options(argv[0], "Read gauge value from an image.");
+
+    options.add_options()
+        ("r,radius", "Gauge screen radius", cxxopts::value<int>())
+        ("c,center", "Gauge screen center x,y coordinates.", cxxopts::value<std::vector<int>>())
+        ("A,angle-bounds", "Gauge angle min,max.", cxxopts::value<std::vector<int>>())	
+        ("V,value-bounds", "Gauge value min,max.", cxxopts::value<std::vector<int>>())	
+        ("t,threshold", "Threshold value for b/w img.", cxxopts::value<int>())
+        ("m,max-value", "Max value for b/w img.", cxxopts::value<int>()->default_value("255"))
+        ("s,calibrate-step", "Calibration stemp number (1,2 or 3).", cxxopts::value<int>())
+        ("n,canny", "Canny img before line detection.")
+        ("v,verbose", "Verbose output", cxxopts::value<bool>()->default_value("false"))
+        ("d,dry-run", "Just parse options and exit")
+        ("h,help", "Print usage")
+    ;
+
+    auto result = options.parse(argc, argv);
+    options.parse_positional({"filename"})
+
+    if (result.count("help"))
+    {
+      std::cout << options.help() << std::endl;
+      exit(0);
     }
+    verbose = result["verbose"].as<bool>();
+    canny = result["canny"].as<bool>();
+    if (result.count("filename"))
+        fname = result["filename"].as<std::string>();
+    r = result["radius"].as<int>();
+    c = result["center"].as<std::vector<int>>();
+    std::vector<int>> tmp;
+    tmp = result["angle-bounds"].as<std::vector<int>>>();
+    min_angle = tmp[0];   
+    max_angle = tmp[1];   
+    tmp = result["value-bounds"].as<std::vector<int>>>();
+    min_value = tmp[0];   
+    max_value = tmp[1];   
+    thresh = result["threshold"].as<int>();
+    maxValue = result["max-value"].as<int>();
+    r = result["radius"].as<int>();
 
     if (dryRun)
+    {
+        std::cout << "verbose " << verbose << std::endl;
+        std::cout << "canny " << canny << std::endl;
+        std::cout << "filename " << fname << std::endl;
+        std::cout << "radius " << r << std::endl;
+        std::cout << "center " << c << std::endl;
+        std::cout << "angle-bounds " << min_angle << "," << max_angle << std::endl;
+        std::cout << "value-bounds " << min_value << "," << max_value << std::endl;
+        std::cout << "threshold " << thresh << std::endl;
+        std::cout << "max-value " << maxValue << std::endl;
         return 0;
+    }
 
     Mat img;
     img = imread( fname, 1 );
