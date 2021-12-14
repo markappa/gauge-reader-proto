@@ -45,6 +45,8 @@ int main(int argc, char** argv )
     int max_angle = 320;
     int min_value = 0;
     int max_value = 4;
+    int thresh = 95;
+    int maxValue = 255;
 
     // worked: -r 83 -x 410 -y 240
     
@@ -186,33 +188,28 @@ int main(int argc, char** argv )
     cvtColor(img, gray2, COLOR_BGR2GRAY);
 
     // Set threshold and maxValue
-    int thresh = 95;
-    int maxValue = 255;
     Mat dst2;
-#ifdef FIND_THRESHOLD
-  for(thresh= 80; thresh<120; thresh += 5) {
-#endif
-    // apply thresholding which helps for finding lines
-    threshold(gray2, dst2, thresh, maxValue, THRESH_BINARY_INV);
 
-    // found Hough Lines generally performs better without Canny / blurring, though there were a couple exceptions where it would only work with Canny / blurring
-    //dst2 = cv2.medianBlur(dst2, 5)
-#ifdef CANNY
-    Canny(dst2, dst2, 50, 150, 3);
-#endif
-    //dst2 = cv2.GaussianBlur(dst2, (5, 5), 0)
-    // for testing, show image after thresholding
-#ifdef DEBUG
-#ifdef FIND_THRESHOLD
-    imwrite("soglia"+ std::to_string(thresh) +".jpg", dst2);
-#else
-    imwrite("soglia.jpg", dst2);
-#endif //FIND_THRESHOLD
-#endif //DEBUG
+    if (calibrate_3) {
+        for(thresh= 80; thresh<120; thresh += 5) {
+            // apply thresholding which helps for finding lines
+            threshold(gray2, dst2, thresh, maxValue, THRESH_BINARY_INV);
 
-#ifdef FIND_THRESHOLD
-  }
-#endif
+            // found Hough Lines generally performs better without Canny / blurring, though there were a couple exceptions where it would only work with Canny / blurring
+            //dst2 = cv2.medianBlur(dst2, 5)
+            if (canny)
+                Canny(dst2, dst2, 50, 150, 3);
+
+            //dst2 = cv2.GaussianBlur(dst2, (5, 5), 0)
+            // show image after thresholding
+            imwrite("soglia"+ std::to_string(thresh) +".jpg", dst2);
+         }
+         // end of calibration step 3
+    } else {
+         threshold(gray2, dst2, thresh, maxValue, THRESH_BINARY_INV);
+         if(save_threshold_image)
+             imwrite("soglia.jpg", dst2);
+    }
 
     // find lines
     int minLineLength = 10;
@@ -223,8 +220,8 @@ int main(int argc, char** argv )
     HoughLinesP(dst2, lines, 3, PI / 360, threshold, minLineLength, maxLineGap);
     // rho is set to 3 to detect more lines, easier to get more then filter them out later
 
-    // for testing purposes, show all found lines
 #ifdef DEBUG
+    // for testing purposes, show all found lines
     std::cout << "Found " << std::to_string(lines.size()) << " lines.\n";
     for( size_t i = 0; i < lines.size(); i++ )
     {
@@ -237,16 +234,15 @@ int main(int argc, char** argv )
     // remove all lines outside a given radius
     std::vector<Vec4i> final_line_list;
 
-#ifdef DEBUG
-    std::cout << "radius: " << r << std::endl;
-#endif
+    if(verbose) std::cout << "radius: " << r << std::endl;
 
     float diff1LowerBound = 0.15; // diff1LowerBound and diff1UpperBound determine how close the line should be from the center
     float diff1UpperBound = 0.25;
     float diff2LowerBound = 0.5; // diff2LowerBound and diff2UpperBound determine how close the other point of the line should be to the outside of the gauge
     float diff2UpperBound = 1.0;
-//int mini; float mindiff=9999999.0f;
-    int maxi; float maxl=0.0f; // find the longest line from selectd
+    int maxi; 
+    float maxl=0.0f; // find the longest line from selectd
+
     for ( int i=0; i<lines.size(); i++)
     {
         int x1, y1, x2, y2;
@@ -255,24 +251,19 @@ int main(int argc, char** argv )
         x2 = lines[i][2];
         y2 = lines[i][3];
         // c is center of circle
-        //float diff1 = sqrt(pow(c.x - x1, 2) + pow(c.y - y1, 2));
-        //float diff2 = sqrt(pow(c.x - x2, 2) + pow(c.y - y2, 2));
         float diff1 = dist_2_pts(c.x, c.y, x1, y1);
         float diff2 = dist_2_pts(c.x, c.y, x2, y2);
         // set diff1 to be the smaller (closest to the center) of the two), makes the math easier
         if (diff2 < diff1) {
-           float t = diff2;
+           float tmp = diff2;
            diff2 = diff1;
-           diff1 = t;
+           diff1 = tmp;
         }
-//if(i==316)std::cout<<"c "<<c<<", line "<<lines[i]<<", diff1,2 "<<diff1<<","<<diff2<<std::endl;
-//if(diff1 < mindiff){mindiff=diff1;mini=i;}
         // check if line is within an acceptable range
         if ( (diff1<diff1UpperBound*r) && (diff1>diff1LowerBound*r)
            && (diff2<diff2UpperBound*r) && (diff2>diff2LowerBound*r)
            )
         {
-            //float line_length = sqrt(pow(x2-x1,2)+pow(y2-y1,2));
             float line_length = dist_2_pts(x1, y1, x2, y2);
             if(line_length>maxl){
                maxi = final_line_list.size();
@@ -283,10 +274,9 @@ int main(int argc, char** argv )
             final_line_list.push_back(l);
         }
     }
-//std::cout<<"min d, i "<<mindiff<<", "<<mini<<std::endl;
 
-    // testing only, show all lines after filtering
 #ifdef DEBUG
+    // testing only, show all lines after filtering
     std::cout << "Remaining " << std::to_string(final_line_list.size()) << " lines.\n";
     for( size_t i = 0; i < final_line_list.size(); i++ )
     {
@@ -306,11 +296,13 @@ int main(int argc, char** argv )
     y1 = final_line_list[maxi][1];
     x2 = final_line_list[maxi][2];
     y2 = final_line_list[maxi][3];
+ 
+    // show the line overlayed on the original image
     //cv2.line(img, (x1, y1), (x2, y2), (0, 255, 0), 2)
-
-    //for testing purposes, show the line overlayed on the original image
     //cv2.imwrite('gauge-1-test.jpg', img)
     //cv2.imwrite('gauge-%s-lines-2.%s' % (gauge_number, file_type), img)
+
+    // Calculate the reading value from line angle
 
     // find the farthest point from the center to be what is used to determine the angle
     float dist_pt_0 = dist_2_pts(c.x, c.y, x1, y1);
@@ -325,12 +317,6 @@ int main(int argc, char** argv )
     }
     // take the arc tan of y/x to find the angle
     float res = atan(float(y_angle)/ float(x_angle));
-    //np.rad2deg(res) #coverts to degrees
-
-    // print x_angle
-    // print y_angle
-    // print res
-    // print np.rad2deg(res)
 
     //these were determined by trial and error
     res = rad2deg(res);
@@ -348,6 +334,7 @@ int main(int argc, char** argv )
         final_angle = 270 - res;
     }
 
+    // Convert angle to value
     float old_min = float(min_angle);
     float old_max = float(max_angle);
     float new_min = float(min_value);
@@ -359,8 +346,8 @@ int main(int argc, char** argv )
     float new_value = (((old_value - old_min) * new_range) / old_range) + new_min;
 
     new_value = floor(new_value * 100.0 + 0.5) /100.0;
+
     std::cout<<new_value<<std::endl;
 
     return 0;
-
 }
