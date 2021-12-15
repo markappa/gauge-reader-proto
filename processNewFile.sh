@@ -28,9 +28,6 @@ echo "Processing file: $pathName"
 readCmd="/root/readGauge -c $CEN -r $RAD -A $ANG -V $VAL -t $THR $pathName"
 echo $readCmd
 
-######## TEST #######
-exit
-
 newVal=$($readCmd)
 echo "Read new value: $newVal"
 

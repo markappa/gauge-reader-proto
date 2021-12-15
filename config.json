@@ -4,7 +4,7 @@
   "stage": "experimental",
   "slug": "gauge_reader",
   "description": "Read the value from pictures of a gauge meter using OpenCV computer vision libraries, into a Home Assistant sensor entity.",
-  "panel_icon": ,"mdi::gauge",
+  "panel_icon": "mdi::gauge",
   "arch": ["armhf", "armv7", "aarch64", "amd64", "i386"],
   "startup": "application",
   "boot": "auto",
