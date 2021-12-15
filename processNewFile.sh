@@ -1,14 +1,19 @@
-#!/bin/bash
+#!/usr/bin/with-contenv bashio
 # this script is called by inotifyd
 # parameters are: event dirName fileName
-# e.g.: n     /media/espcam_02        20211212_042514.jpg
-
+# e.g.: "n     /media/espcam_02        20211212_042514.jpg"
 
 event=$1
 sourceDir=$2
 lastFile=$3
 pathName="$sourceDir/$lastFile"
 archDir="$sourceDir/parsed"
+
+CEN=$(bashio::config 'center')
+RAD=$(bashio::config 'radius')
+ANG=$(bashio::config 'angle')
+VAL=$(bashio::config 'value')
+THR=$(bashio::config 'threshold')
 
 # test number of parameters
 # test event is n or t (test, do not move file)
@@ -20,8 +25,11 @@ archDir="$sourceDir/parsed"
 
 echo "Processing file: $pathName"
 
-readCmd="/root/readGauge $pathName"
+readCmd="/root/readGauge -c $CEN -r $RAD -A $ANG -V $VAL -t $THR $pathName"
 echo $readCmd
+
+######## TEST #######
+exit
 
 newVal=$($readCmd)
 echo "Read new value: $newVal"
