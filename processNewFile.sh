@@ -23,15 +23,33 @@ THR=$(bashio::config 'threshold')
 # test curl return value for error state
 # test curl http reply for OK200
 
+function handleSigterm () {
+  case $? in
+    139) echo "segfault occurred" ;
+      curl -s -X POST -H "Authorization: Bearer ${SUPERVISOR_TOKEN}"\
+       -H "Content-Type: application/json"\
+       -d "{\
+        \"message\":\"readGauge failed with SIGTERM on file ${pathName}\",\
+        \"logger\":\"${HOSTNAME}.addon\"\
+       }"\
+       http://supervisor/core/api/services/system_log/write ;;
+    0) echo "all seems ok";;
+  esac
+}
+
 echo "Processing file: $pathName"
 
+trap handleSigterm EXIT
+
 readCmd="/root/readGauge -c $CEN -r $RAD -A $ANG -V $VAL -t $THR $pathName"
-echo $readCmd
+#echo $readCmd
 
 newVal=$($readCmd)
-echo "Read new value: $newVal"
+echo "Value read: $newVal"
 
-curl -X POST -H "Authorization: Bearer ${SUPERVISOR_TOKEN}"\
+if [ $event = "n" ]
+then
+curl -s -X POST -H "Authorization: Bearer ${SUPERVISOR_TOKEN}"\
  -H "Content-Type: application/json"\
  -d "{\"state\":$newVal,\
   \"attributes\": {\
@@ -44,6 +62,7 @@ curl -X POST -H "Authorization: Bearer ${SUPERVISOR_TOKEN}"\
   }\
  }"\
  http://supervisor/core/api/states/sensor.pressione_caldaia2
+fi
 
 echo
 
