@@ -25,6 +25,7 @@ Done (implicit in calibration) - option to output calibratrion files:
 #define dist_2_pts(x1,y1,x2,y2) (sqrt(pow((x2)-(x1),2)+pow((y2)-(y1),2)))
 #define rad2deg(a) ((a)*180.0/PI)
 #define ERROR (-1)
+#define LINE_WIDTH 1
 
 bool verbose = false;
 bool dryRun = false;
@@ -204,13 +205,19 @@ int main(int argc, char** argv )
         if (verbose) std::cout << "avg : c/r " << c << "/" << r << std::endl;
 
         // draw the circle center
-        circle( img, c, 3, Scalar(0,255,0), -1, 8, 0 );
+        circle( img, c, 3, Scalar(0,255,0), LINE_WIDTH, 8, 0 );
         // draw the circle outline
-        circle( img, c, r, Scalar(0,0,255), 3, 8, 0 );
+        circle( img, c, r, Scalar(0,0,255), LINE_WIDTH, 8, 0 );
 
         imwrite("calibration_step1.jpg", img);
     }
     // end of calibration step 1
+    
+    // Resize image to keep only the meter
+    Rect rec(c.x-r, c.y-r, r*2, r*2);
+    if (verbose) std::cout << "Crop to " << rec << std::endl;
+    Mat sImg = img(rec);
+    c.x = c.y = r;
 
     if (calibrate_step2) {
         /**
@@ -227,9 +234,9 @@ int main(int argc, char** argv )
         Point2i p_text[interval];
 
         // draw the circle center
-        circle( img, c, 3, Scalar(0,255,0), -1, 8, 0 );
+        circle( sImg, c, 3, Scalar(0,255,0), LINE_WIDTH, 8, 0 );
         // draw the circle outline
-        circle( img, c, r, Scalar(0,0,255), 3, 8, 0 );
+        circle( sImg, c, r, Scalar(0,0,255), LINE_WIDTH, 8, 0 );
 
         for ( int i=0; i<interval; i++) {
             p1[i].x = c.x + 0.9 * r * cos(separation * i * 3.14 / 180); // #point for lines
@@ -241,23 +248,23 @@ int main(int argc, char** argv )
         for ( int i=0; i<interval; i++) {
             p2[i].x = c.x + r * cos(separation * i * 3.14 / 180);
             p2[i].y = c.y + r * sin(separation * i * 3.14 / 180);
-            p_text[i].x = c.x - text_offset_x + 1.2 * r * cos((separation) * (i+9) * 3.14 / 180); // point for text labels, i+9 rotates the labels by 90 degrees
-            p_text[i].y = c.y + text_offset_y + 1.2* r * sin((separation) * (i+9) * 3.14 / 180); //  point for text labels, i+9 rotates the labels by 90 degrees
+            p_text[i].x = c.x - text_offset_x + 0.8 * r * cos((separation) * (i+9) * 3.14 / 180); // point for text labels, i+9 rotates the labels by 90 degrees
+            p_text[i].y = c.y + text_offset_y + 0.8 * r * sin((separation) * (i+9) * 3.14 / 180); //  point for text labels, i+9 rotates the labels by 90 degrees
         }
 
         // add the lines and labels to the image
         for ( int i=0; i<interval; i++) {
-            line(img, p1[i], p2[i], Scalar(0, 255, 0), 2);
-            putText(img, std::to_string(int(i*separation)), p_text[i], FONT_HERSHEY_SIMPLEX, 0.3f, Scalar(0,0,0),1,LINE_AA);
+            line(sImg, p1[i], p2[i], Scalar(0, 255, 0), LINE_WIDTH);
+            putText(sImg, std::to_string(int(i*separation)), p_text[i], FONT_HERSHEY_SIMPLEX, 0.3f, Scalar(0,0,0),1,LINE_AA);
             if (verbose) std::cout << ".. " << p1[i] << " " <<p2[i] << std::endl;
         }
 
-        imwrite("calibration_step2.jpg", img);
+        imwrite("calibration_step2.jpg", sImg);
     }
     // end of calibration step 2
 
     Mat gray2;
-    cvtColor(img, gray2, COLOR_BGR2GRAY);
+    cvtColor(sImg, gray2, COLOR_BGR2GRAY);
 
     // Set threshold and maxValue
     Mat dst2;
@@ -298,9 +305,9 @@ int main(int argc, char** argv )
     for( size_t i = 0; i < lines.size(); i++ )
     {
         Vec4i l = lines[i];
-        line( img, Point(l[0], l[1]), Point(l[2], l[3]), Scalar(0,0,255), 3, LINE_AA);
+        line( sImg, Point(l[0], l[1]), Point(l[2], l[3]), Scalar(0,0,255), LINE_WIDTH, LINE_AA);
     }
-    imwrite("righe_unfiltered.jpg", img);
+    imwrite("righe_unfiltered.jpg", sImg);
 #endif
 
     // remove all lines outside a given radius
@@ -308,15 +315,28 @@ int main(int argc, char** argv )
 
     if(verbose) std::cout << "radius: " << r << std::endl;
 
-    float diff1LowerBound = 0.15; // diff1LowerBound and diff1UpperBound determine how close the line should be from the center
-    float diff1UpperBound = 0.25;
-    float diff2LowerBound = 0.5; // diff2LowerBound and diff2UpperBound determine how close the other point of the line should be to the outside of the gauge
-    float diff2UpperBound = 1.0;
-    int maxi; 
-    float maxl=0.0f; // find the longest line from selectd
+    // diff1LowerBound and diff1UpperBound determine how close the line should be from the center
+    float diff1LowerBound = 0.0;
+    float diff1UpperBound = 0.35;
+    // diff2LowerBound and diff2UpperBound determine how close the other point of the line should be to the outside of the gauge
+    float diff2LowerBound = 0.4;
+    float diff2UpperBound = 1.2;
+    // find the longest line from selectd
+    int maxi=-1; 
+    float maxl=0.0f;
 
-    for ( int i=0; i<lines.size(); i++)
+    if(verbose) {
+	    std::cout << diff1LowerBound << "-" << diff1UpperBound << " " << diff2LowerBound << "-" << diff2UpperBound << std::endl;
+	    std::cout << "loop lines: " << std::endl;
+	    std::cout << std::fixed;
+	    std::cout.precision(2);
+    }
+
+    int i;
+    for ( i=0; i<lines.size(); i++)
     {
+        if(verbose) std::cout << ".";
+
         int x1, y1, x2, y2;
         x1 = lines[i][0];
         y1 = lines[i][1];
@@ -331,6 +351,10 @@ int main(int argc, char** argv )
            diff2 = diff1;
            diff1 = tmp;
         }
+
+        if(verbose) std::cout << diff1/r << " - " << diff2/r << 
+		" " << dist_2_pts(x1, y1, x2, y2) << std::endl;
+
         // check if line is within an acceptable range
         if ( (diff1<diff1UpperBound*r) && (diff1>diff1LowerBound*r)
            && (diff2<diff2UpperBound*r) && (diff2>diff2LowerBound*r)
@@ -346,6 +370,15 @@ int main(int argc, char** argv )
             final_line_list.push_back(l);
         }
     }
+    if(verbose) std::cout << "end on " << i << std::endl <<
+	    "maxi is " << maxi << std::endl <<
+            "lines are " << std::to_string(final_line_list.size()) << std::endl;
+
+    if ( final_line_list.size() == 0 )
+    {
+      std::cerr << "I could not find the dial." << std::endl;
+      exit(ERROR);
+    }
 
 #ifdef DEBUG
     // testing only, show all lines after filtering
@@ -354,12 +387,12 @@ int main(int argc, char** argv )
     {
         Vec4i l = final_line_list[i];
         if(i==maxi) {
-           line( img, Point(l[0], l[1]), Point(l[2], l[3]), Scalar(0,255,0), 1, LINE_AA);
+           line( sImg, Point(l[0], l[1]), Point(l[2], l[3]), Scalar(0,255,0), LINE_WIDTH, LINE_AA);
         } else {
-           line( img, Point(l[0], l[1]), Point(l[2], l[3]), Scalar(255,0,0), 1, LINE_AA);
+           line( sImg, Point(l[0], l[1]), Point(l[2], l[3]), Scalar(255,0,0), LINE_WIDTH, LINE_AA);
         }
     }
-    imwrite("righe_filtered.jpg", img);
+    imwrite("righe_filtered.jpg", sImg);
 #endif
 
     // assumes the longest line is the best one
@@ -370,9 +403,11 @@ int main(int argc, char** argv )
     y2 = final_line_list[maxi][3];
  
     // show the line overlayed on the original image
-    //cv2.line(img, (x1, y1), (x2, y2), (0, 255, 0), 2)
-    //cv2.imwrite('gauge-1-test.jpg', img)
-    //cv2.imwrite('gauge-%s-lines-2.%s' % (gauge_number, file_type), img)
+    //cv2.line(sImg, (x1, y1), (x2, y2), (0, 255, 0), 2)
+    //cv2.imwrite('gauge-1-test.jpg', sImg)
+    //cv2.imwrite('gauge-%s-lines-2.%s' % (gauge_number, file_type), sImg)
+
+    if(verbose) std::cout << "Checkpoint 0" << std::endl;
 
     // Calculate the reading value from line angle
 
@@ -387,6 +422,9 @@ int main(int argc, char** argv )
         x_angle = x2 - c.x;
         y_angle = c.y - y2;
     }
+
+    if(verbose) std::cout << "Checkpoint 1" << std::endl;
+
     // take the arc tan of y/x to find the angle
     float res = atan(float(y_angle)/ float(x_angle));
 
@@ -406,6 +444,8 @@ int main(int argc, char** argv )
         final_angle = 270 - res;
     }
 
+    if(verbose) std::cout << "Checkpoint 2" << std::endl;
+
     // Convert angle to value
     float old_min = float(min_angle);
     float old_max = float(max_angle);
@@ -416,6 +456,8 @@ int main(int argc, char** argv )
     float old_range = (old_max - old_min);
     float new_range = (new_max - new_min);
     float new_value = (((old_value - old_min) * new_range) / old_range) + new_min;
+
+    if(verbose) std::cout << "Checkpoint 3" << std::endl;
 
     new_value = floor(new_value * 100.0 + 0.5) /100.0;
 
