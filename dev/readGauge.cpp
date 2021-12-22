@@ -182,6 +182,9 @@ int main(int argc, char** argv )
         if ( n == 0 )
             return ERROR;
 
+        // Reset c and r to calculate mean value.
+        c.x = c.y = r = 0;
+
         for( size_t i = 0; i < n; i++ )
         {
             Point center(cvRound(circles[i][0]), cvRound(circles[i][1]));
@@ -289,9 +292,9 @@ int main(int argc, char** argv )
     HoughLinesP(dst2, lines, 3, PI / 360, threshold, minLineLength, maxLineGap);
     // rho is set to 3 to detect more lines, easier to get more then filter them out later
 
+    if(verbose) std::cout << "Found " << std::to_string(lines.size()) << " lines.\n";
 #ifdef DEBUG
     // for testing purposes, show all found lines
-    std::cout << "Found " << std::to_string(lines.size()) << " lines.\n";
     for( size_t i = 0; i < lines.size(); i++ )
     {
         Vec4i l = lines[i];
