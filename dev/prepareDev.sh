@@ -9,13 +9,15 @@ alias ll="ls -la"
 
 # build cxxopts
 apk add git
-#apk add cmake
+apk add cmake
 #export CMAKE_CXX_COMPILER=g++
 apk add make 
 mkdir cxxopts
 cd cxxopts
+git init
 git pull https://github.com/jarro2783/cxxopts master
-make .
+cmake .
+make
 make install
 cd ..
 
