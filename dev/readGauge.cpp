@@ -401,10 +401,13 @@ int main(int argc, char** argv )
         float diff1 = dist_2_pts(c.x, c.y, x1, y1);
         float diff2 = dist_2_pts(c.x, c.y, x2, y2);
         // set diff1 to be the smaller (closest to the center) of the two), makes the math easier
+	// Also reorder the line so that it starts from center
         if (diff2 < diff1) {
            float tmp = diff2;
            diff2 = diff1;
            diff1 = tmp;
+	   int t=x1; x1=x2; x2=t;
+	   t=y1; y1=y2; y2=t;
         }
 
         if(verbose) std::cout << diff1/r << " - " << diff2/r << 
@@ -467,65 +470,28 @@ int main(int argc, char** argv )
     x2 = final_line_list[maxi][2];
     y2 = final_line_list[maxi][3];
  
-    // show the line overlayed on the original image
-    //cv2.line(sImg, (x1, y1), (x2, y2), (0, 255, 0), 2)
-    //cv2.imwrite('gauge-1-test.jpg', sImg)
-    //cv2.imwrite('gauge-%s-lines-2.%s' % (gauge_number, file_type), sImg)
-
     if(verbose) std::cout << "Checkpoint 0" << std::endl;
 
     // Calculate the reading value from line angle
 
-    // find the farthest point from the center to be what is used to determine the angle
-    float dist_pt_0 = dist_2_pts(c.x, c.y, x1, y1);
-    float dist_pt_1 = dist_2_pts(c.x, c.y, x2, y2);
-    int x_angle, y_angle;
-    if (dist_pt_0 > dist_pt_1) {
-        x_angle = x1 - c.x;
-        y_angle = c.y - y1;
-    } else {
-        x_angle = x2 - c.x;
-        y_angle = c.y - y2;
-    }
+    // use asin to determine angle
+    // y2-y1 = sin(a)*l
+    // use center instead of first point: more accurate
+    float len = dist_2_pts(c.x,c.y,x2,y2);
+    float final_angle = asin((c.y-y2)/len)*180/3.1415626 + 90;
+    if(final_angle>360) final_angle -= 360.0;
 
-    trace("Checkpoint 1");
-
-    // take the arc tan of y/x to find the angle
-    float res = atan(float(y_angle)/ float(x_angle));
-
-    //these were determined by trial and error
-    res = rad2deg(res);
-    float final_angle;
-    if (x_angle > 0 and y_angle > 0) { //in quadrant I
-        final_angle = 270 - res;
-    }
-    if (x_angle < 0 and y_angle > 0) { //in quadrant II
-        final_angle = 90 - res;
-    }
-    if (x_angle < 0 and y_angle < 0) { //in quadrant III
-        final_angle = 90 - res;
-    }
-    if (x_angle > 0 and y_angle < 0) { //in quadrant IV
-        final_angle = 270 - res;
-    }
-
+    trace(final_angle);
     trace("Checkpoint 2");
 
     // Convert angle to value
-    float old_min = float(min_angle);
-    float old_max = float(max_angle);
-    float new_min = float(min_value);
-    float new_max = float(max_value);
-    float old_value = final_angle;
-
-    float old_range = (old_max - old_min);
-    float new_range = (new_max - new_min);
-    float new_value = (((old_value - old_min) * new_range) / old_range) + new_min;
+#define angle2value(ang) ((((ang)-min_angle)*(max_value-min_value))/(max_angle-min_angle))+min_value
+    float new_value = angle2value(final_angle);
 
     trace("Checkpoint 3");
 
-    new_value = floor(new_value * 100.0 + 0.5) /100.0;
-
+    std::cout << std::fixed;
+    std::cout.precision(2);
     std::cout<<new_value<<std::endl;
 
     return 0;
