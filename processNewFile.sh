@@ -14,6 +14,7 @@ RAD=$(bashio::config 'radius')
 ANG=$(bashio::config 'angle')
 VAL=$(bashio::config 'value')
 THR=$(bashio::config 'threshold')
+LBS=$(bashio::config 'line_bounds')
 
 # test number of parameters
 # test event is n or t (test, do not move file)
@@ -33,7 +34,7 @@ function handleSigterm () {
         \"logger\":\"${HOSTNAME}.addon\"\
        }"\
        http://supervisor/core/api/services/system_log/write ;;
-    0) echo "all seems ok";;
+    0) echo "Process ended correctly";;
   esac
 }
 
@@ -44,7 +45,7 @@ trap handleSigterm EXIT
 # Delete all jpg older than 7 days in /media
 find /media -name '202*.jpg' -mtime +7  -exec rm {} \;
 
-readCmd="/root/readGauge -c $CEN -r $RAD -A $ANG -V $VAL -t $THR $pathName"
+readCmd="/root/readGauge -c $CEN -r $RAD -A $ANG -V $VAL -t $THR -l $LBS $pathName"
 echo $readCmd
 
 newVal=$($readCmd)
@@ -72,7 +73,7 @@ echo
 if [ $event = "n" ]
 then
   mv $pathName $archDir
-  echo "Moved $pathName to $archDir"
+  #echo "Moved $pathName to $archDir"
 fi
 
 exit
