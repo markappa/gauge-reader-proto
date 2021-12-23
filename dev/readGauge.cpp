@@ -198,14 +198,14 @@ int main(int argc, char** argv )
             // draw the circle center
             circle( img, center, 3, Scalar(0,0,0), -1, 8, 0 );
             // draw the circle outline
-            circle( img, center, radius, Scalar(0,0,0), 3, 8, 0 );
+            circle( img, center, radius, Scalar(0,0,0), LINE_WIDTH, 8, 0 );
         }
         c /= n;
         r = cvRound(r / n);
         if (verbose) std::cout << "avg : c/r " << c << "/" << r << std::endl;
 
         // draw the circle center
-        circle( img, c, 3, Scalar(0,255,0), LINE_WIDTH, 8, 0 );
+        circle( img, c, 3, Scalar(0,255,0), -1, 8, 0 );
         // draw the circle outline
         circle( img, c, r, Scalar(0,0,255), LINE_WIDTH, 8, 0 );
 
@@ -234,7 +234,7 @@ int main(int argc, char** argv )
         Point2i p_text[interval];
 
         // draw the circle center
-        circle( sImg, c, 3, Scalar(0,255,0), LINE_WIDTH, 8, 0 );
+        circle( sImg, c, 3, Scalar(0,255,0), -1, 8, 0 );
         // draw the circle outline
         circle( sImg, c, r, Scalar(0,0,255), LINE_WIDTH, 8, 0 );
 
