@@ -401,7 +401,7 @@ int main(int argc, char** argv )
         float diff1 = dist_2_pts(c.x, c.y, x1, y1);
         float diff2 = dist_2_pts(c.x, c.y, x2, y2);
         // set diff1 to be the smaller (closest to the center) of the two), makes the math easier
-	// Also reorder the line so that it starts from center
+	// Also reorder the line so that x1,y1 is near the center
         if (diff2 < diff1) {
            float tmp = diff2;
            diff2 = diff1;
@@ -418,7 +418,8 @@ int main(int argc, char** argv )
            && (diff2<diff2UpperBound*r) && (diff2>diff2LowerBound*r)
            )
         {
-            float line_length = dist_2_pts(x1, y1, x2, y2);
+	    // record the one with the farthest point (deeper in the point of the dial)
+            float line_length = dist_2_pts(c.x, c.y, x2, y2);
             if(line_length>maxl){
                maxi = final_line_list.size();
                maxl = line_length;
