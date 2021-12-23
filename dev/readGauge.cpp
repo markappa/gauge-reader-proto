@@ -32,8 +32,9 @@ bool dryRun = false;
 bool calibrate_step1 = false;
 bool calibrate_step2 = false;
 bool calibrate_step3 = false;
+bool calibrate_step4 = false;
 bool canny = false;
-bool save_threshold_image = false;
+bool image_out = false;
 
 using namespace cv;
 int main(int argc, char** argv )
@@ -48,8 +49,12 @@ int main(int argc, char** argv )
     int max_value = 4;
     int thresh = 95;
     int maxValue = 255;
-
-    // worked: -r 83 -x 410 -y 240
+    // diff1LowerBound and diff1UpperBound determine how close the line should be from the center
+    float diff1LowerBound = 0.0;
+    float diff1UpperBound = 0.45;
+    // diff2LowerBound and diff2UpperBound determine how close the other point of the line should be to the outside of the gauge
+    float diff2LowerBound = 0.8;
+    float diff2UpperBound = 1.2;
 
     cxxopts::Options options(argv[0], "Read gauge value from an image.");
 
@@ -60,9 +65,10 @@ int main(int argc, char** argv )
         ("V,value-bounds", "Gauge value min,max.", cxxopts::value<std::vector<int>>())	
         ("t,threshold", "Threshold value for b/w img.", cxxopts::value<int>())
         ("m,max-value", "Max value for b/w img.", cxxopts::value<int>()->default_value("255"))
+        ("l,line-bounds", "Line limits [%] minNear,maxNear,minFar,maxFar.", cxxopts::value<std::vector<int>>())	
         ("s,calibrate-step", "Calibration stemp number (1,2 or 3).", cxxopts::value<int>())
         ("n,canny", "Canny img before line detection.")
-        ("save_threshold_image", "Save b/w image.")
+        ("i,save_images", "Save calibration images.")
         ("v,verbose", "Verbose output", cxxopts::value<bool>()->default_value("false"))
         ("d,dry-run", "Just parse options and exit")
         ("h,help", "Print usage")
@@ -82,7 +88,7 @@ int main(int argc, char** argv )
     verbose = result["verbose"].as<bool>();
     dryRun = result["dry-run"].as<bool>();
     canny = result["canny"].as<bool>();
-    save_threshold_image = result["save_threshold_image"].as<bool>();
+    image_out = result["save_images"].as<bool>();
     if (result.count("radius"))
         r = result["radius"].as<int>();
     if (result.count("center"))
@@ -91,6 +97,19 @@ int main(int argc, char** argv )
         c.y = result["center"].as<std::vector<int>>()[1];
     }
     std::vector<int> tmp;
+    if (result.count("line-bounds"))
+    {
+        tmp = result["line-bounds"].as<std::vector<int>>();
+	if (tmp.size() == 4) {
+          diff1LowerBound = tmp[0]/100.0;   
+          diff1UpperBound = tmp[1]/100.0;   
+          diff2LowerBound = tmp[2]/100.0;   
+          diff2UpperBound = tmp[3]/100.0;
+	} else {
+          std::cout << "Invalid line-bounds option format ("<<tmp.size() <<")." << std::endl;
+          exit(0);
+	}
+    }
     if (result.count("angle-bounds"))
     {
         tmp = result["angle-bounds"].as<std::vector<int>>();
@@ -123,6 +142,9 @@ int main(int argc, char** argv )
             case 3:
                 calibrate_step3 = true;
                 break;
+            case 4:
+                calibrate_step4 = true;
+                break;
             default:
                 std::cout << "Unexpexted step value." << std::endl;
                 exit ERROR;
@@ -146,7 +168,9 @@ int main(int argc, char** argv )
         std::cout << "value-bounds " << min_value << "," << max_value << std::endl;
         std::cout << "threshold " << thresh << std::endl;
         std::cout << "max-value " << maxValue << std::endl;
-        std::cout << "calibrate-step " << calibrate_step1 << ":" <<calibrate_step2 << ":" <<calibrate_step3 << std::endl;
+        std::cout << "save_images " << image_out << std::endl;
+	std::cout << "line-bounds " << diff1LowerBound << "-" << diff1UpperBound << " " << diff2LowerBound << "-" << diff2UpperBound << std::endl;
+        std::cout << "calibrate-step " << calibrate_step1 << ":" <<calibrate_step2 << ":" <<calibrate_step3 << ":" <<calibrate_step4 << std::endl;
 
         if (dryRun)
         {
@@ -164,7 +188,8 @@ int main(int argc, char** argv )
     }
     if (verbose) printf("Loaded ok.\n");
 
-    if (calibrate_step1) {
+    // trick: use verbose to find auto center in step1
+    if (calibrate_step1 && verbose) {
         int height, width;
         height = img.rows;
         width = img.cols;
@@ -203,22 +228,24 @@ int main(int argc, char** argv )
         c /= n;
         r = cvRound(r / n);
         if (verbose) std::cout << "avg : c/r " << c << "/" << r << std::endl;
-
-        // draw the circle center
-        circle( img, c, 3, Scalar(0,255,0), -1, 8, 0 );
-        // draw the circle outline
-        circle( img, c, r, Scalar(0,0,255), LINE_WIDTH, 8, 0 );
-
-        imwrite("calibration_step1.jpg", img);
     }
     // end of calibration step 1
-    
+
     // Resize image to keep only the meter
     Rect rec(c.x-r, c.y-r, r*2, r*2);
     if (verbose) std::cout << "Crop to " << rec << std::endl;
     Mat sImg = img(rec);
     c.x = c.y = r;
 
+    if ( image_out && calibrate_step1 ) {
+        // draw the circle center
+        circle( sImg, c, 3, Scalar(0,255,0), -1, 8, 0 );
+        // draw the circle outline
+        circle( sImg, c, r, Scalar(0,0,255), LINE_WIDTH, 8, 0 );
+
+        imwrite("calibration_step1.jpg", sImg);
+    }
+    
     if (calibrate_step2) {
         /**
         goes through the motion of a circle and sets x and y values based on the set separation spacing.  Also adds text to each
@@ -286,7 +313,7 @@ int main(int argc, char** argv )
          // end of calibration step 3
     } else {
          threshold(gray2, dst2, thresh, maxValue, THRESH_BINARY_INV);
-         if(save_threshold_image)
+         if(image_out)
              imwrite("threshold.jpg", dst2);
     }
 
@@ -313,19 +340,11 @@ int main(int argc, char** argv )
     // remove all lines outside a given radius
     std::vector<Vec4i> final_line_list;
 
-    if(verbose) std::cout << "radius: " << r << std::endl;
-
-    // diff1LowerBound and diff1UpperBound determine how close the line should be from the center
-    float diff1LowerBound = 0.0;
-    float diff1UpperBound = 0.35;
-    // diff2LowerBound and diff2UpperBound determine how close the other point of the line should be to the outside of the gauge
-    float diff2LowerBound = 0.4;
-    float diff2UpperBound = 1.2;
     // find the longest line from selectd
     int maxi=-1; 
     float maxl=0.0f;
 
-    if(verbose) {
+    if (verbose && calibrate_step4) {
 	    std::cout << diff1LowerBound << "-" << diff1UpperBound << " " << diff2LowerBound << "-" << diff2UpperBound << std::endl;
 	    std::cout << "loop lines: " << std::endl;
 	    std::cout << std::fixed;
@@ -335,8 +354,6 @@ int main(int argc, char** argv )
     int i;
     for ( i=0; i<lines.size(); i++)
     {
-        if(verbose) std::cout << ".";
-
         int x1, y1, x2, y2;
         x1 = lines[i][0];
         y1 = lines[i][1];
@@ -352,7 +369,7 @@ int main(int argc, char** argv )
            diff1 = tmp;
         }
 
-        if(verbose) std::cout << diff1/r << " - " << diff2/r << 
+        if(verbose && calibrate_step4) std::cout << diff1/r << " - " << diff2/r << 
 		" " << dist_2_pts(x1, y1, x2, y2) << std::endl;
 
         // check if line is within an acceptable range
@@ -380,20 +397,29 @@ int main(int argc, char** argv )
       exit(ERROR);
     }
 
-#ifdef DEBUG
-    // testing only, show all lines after filtering
-    std::cout << "Remaining " << std::to_string(final_line_list.size()) << " lines.\n";
-    for( size_t i = 0; i < final_line_list.size(); i++ )
+    if(calibrate_step4)
     {
-        Vec4i l = final_line_list[i];
-        if(i==maxi) {
-           line( sImg, Point(l[0], l[1]), Point(l[2], l[3]), Scalar(0,255,0), LINE_WIDTH, LINE_AA);
-        } else {
-           line( sImg, Point(l[0], l[1]), Point(l[2], l[3]), Scalar(255,0,0), LINE_WIDTH, LINE_AA);
-        }
+      // show all lines after filtering
+      std::cout << "Remaining " << std::to_string(final_line_list.size()) << " lines.\n";
+      for( size_t i = 0; i < final_line_list.size(); i++ )
+      {
+          Vec4i l = final_line_list[i];
+          if(i==maxi) {
+             line( sImg, Point(l[0], l[1]), Point(l[2], l[3]), Scalar(0,255,0), LINE_WIDTH, LINE_AA);
+          } else {
+             line( sImg, Point(l[0], l[1]), Point(l[2], l[3]), Scalar(255,0,0), LINE_WIDTH, LINE_AA);
+          }
+      }
+
+      // shov line limits
+      circle( sImg, c, r * diff1LowerBound, Scalar(55,0,0), LINE_WIDTH, 8, 0 );
+      circle( sImg, c, r * diff1UpperBound, Scalar(55,0,0), LINE_WIDTH, 8, 0 );
+      circle( sImg, c, r * diff2LowerBound, Scalar(0,0,55), LINE_WIDTH, 8, 0 );
+      circle( sImg, c, r * diff2UpperBound, Scalar(0,0,55), LINE_WIDTH, 8, 0 );
+
+      if (image_out)
+        imwrite("calibration_step4.jpg", sImg);
     }
-    imwrite("righe_filtered.jpg", sImg);
-#endif
 
     // assumes the longest line is the best one
     int x1, y1, x2, y2;
