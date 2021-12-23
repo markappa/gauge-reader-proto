@@ -4,8 +4,13 @@
 apk add opencv-dev 
 apk add musl-dev 
 apk add g++
+apk add vim
 
-alias ll="ls -la"
+alias ll="ls -lah"
+alias l="ls"
+alias vi="vim"
+alias gs="git status"
+export PATH=$PATH:.
 
 # build cxxopts
 apk add git
