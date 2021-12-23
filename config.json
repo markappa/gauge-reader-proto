@@ -1,6 +1,6 @@
 {
   "name": "Gauge reader",
-  "version": "0.8",
+  "version": "0.9",
   "stage": "experimental",
   "slug": "gauge_reader",
   "description": "Read the value from pictures of a gauge meter using OpenCV computer vision libraries, into a Home Assistant sensor entity",
@@ -14,7 +14,8 @@
     "radius": 83,
     "angle": "58,322",
     "value": "0,4",
-    "threshold": 95
+    "threshold": 95,
+    "line_bounds": "0,40,70,110"
   },
   "schema": {
     "input_dir":"str",
@@ -22,7 +23,8 @@
     "radius": "int",
     "angle": "str",
     "value": "str",
-    "threshold": "int"
+    "threshold": "int",
+    "line_bounds": "str"
   },
   "map": ["media:rw"],
   "homeassistant_api": true,
