@@ -37,12 +37,15 @@ function handleSigterm () {
   esac
 }
 
-echo "Processing file: $pathName"
+#echo "Processing file: $pathName"
 
 trap handleSigterm EXIT
 
+# Delete all jpg older than 7 days in /media
+find /media -name '202*.jpg' -mtime +7  -exec rm {} \;
+
 readCmd="/root/readGauge -c $CEN -r $RAD -A $ANG -V $VAL -t $THR $pathName"
-#echo $readCmd
+echo $readCmd
 
 newVal=$($readCmd)
 echo "Value read: $newVal"
@@ -61,7 +64,7 @@ curl -s -X POST -H "Authorization: Bearer ${SUPERVISOR_TOKEN}"\
    \"name\":\"Pressione caldaia\"\
   }\
  }"\
- http://supervisor/core/api/states/sensor.pressione_caldaia2
+ http://supervisor/core/api/states/sensor.pressione_caldaia2 >.lastState
 fi
 
 echo
